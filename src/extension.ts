@@ -23,7 +23,6 @@ import { SolutionTreeProvider } from './UI/TreeView/SolutionTreeProvider';
 import { TreeViewDataModel } from './Types/TreeViewSolutionData';
 import { IProject } from './Models/Interfaces/IProject';
 import { ISolution } from './Models/Interfaces/ISolution';
-import { PathUtils } from './Utils/Strings/PathUtils';
 import { TreeViewSolutionDataBuilder } from './Core/TreeView/TreeViewSolutionBuilder';
 
 /* 
@@ -32,26 +31,27 @@ import { TreeViewSolutionDataBuilder } from './Core/TreeView/TreeViewSolutionBui
 export async function activate(context: vscode.ExtensionContext) {
 	Logger.LogToOutput('=========== Extension is activate! =========== ');
 
-	/* test */
-	const workspaceFolder = vscode.workspace.workspaceFolders;
-	if (!workspaceFolder) {
+	if (!vscode.workspace.workspaceFolders?.length) {
 		return;
 	}
 
-	const workspace = workspaceFolder[0].uri.fsPath;
+	const solutionFiles = await vscode.workspace.findFiles('**/*.slnx', '**/{node_modules,.git}/**', 2);
+	if (solutionFiles.length !== 1) {
+		const message = solutionFiles.length === 0
+			? 'No .slnx solution was found in the current workspace.'
+			: 'Multiple .slnx solutions were found. Open a workspace containing only the solution you want to load.';
+		await vscode.window.showWarningMessage(`BuildBridge: ${message}`);
+		return;
+	}
+
 	const solutionManager = new SolutionManager();
-	const solution = await solutionManager.Load(workspace + '\\FPSGame.slnx');
+	const solution = await solutionManager.Load(solutionFiles[0].fsPath);
 
-
-
-	/*
-	THIS CODE FOR TEST PARSERS
-	THIS CODE BASED ON MY LOCAL PROJECTS 
-	*/
 	let projects: IProject[] = [];
 	const vsProjectManager = new ProjectManager();
 	for (const project of solution.projects) {
-		const fullPath = workspace + '\\' + project.path;
+		const projectPath = project.path.replace(/[\\/]/g, path.sep);
+		const fullPath = path.resolve(path.dirname(solution.path), projectPath);
 		const projectData = await vsProjectManager.Load(fullPath);
 
 		projects.push(projectData);
